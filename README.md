@@ -1,31 +1,61 @@
-# Volt — Dashboard de monitoramento de energia
+# Volt · Monitoramento de energia
 
 [![Testes](https://github.com/Guiandrelino/dash-node/actions/workflows/tests.yml/badge.svg)](https://github.com/Guiandrelino/dash-node/actions/workflows/tests.yml)
+![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-persistência_local-003B57?logo=sqlite&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-sem_frameworks-F7DF1E?logo=javascript&logoColor=black)
 
-Dashboard para acompanhar leituras elétricas de cinco setores, com coleta automática via Node-RED e histórico local em SQLite. Desenvolvido com HTML, CSS, JavaScript e Node.js, sem dependências externas no aplicativo.
+**Dashboard web para acompanhar indicadores elétricos de cinco setores, com coleta automática via Node-RED e histórico em SQLite.**
 
-## Destaques
+O Volt centraliza corrente, tensão e potência estimada em uma interface responsiva. O backend coleta e persiste as leituras independentemente do navegador, mantendo o último snapshot disponível quando a fonte de dados fica indisponível.
 
-- Interface responsiva com corrente, tensão e potência estimada por setor.
-- Backend HTTP com coleta periódica, timeout e indicação de dados desatualizados.
-- Persistência transacional em SQLite e retenção em lotes de 100 coletas.
-- API de histórico com filtros por setor, período e paginação.
-- Integração com Node-RED e dispositivos Modbus TCP.
-- Testes automatizados com o runner nativo do Node.js e GitHub Actions.
+[Início rápido](#início-rápido) · [Configuração](#configuração) · [Integração](#integração-com-node-red) · [API](#api-http) · [Testes](#testes)
+
+## Funcionalidades
+
+- **Cinco setores:** Embalagem, Entrega, Qualidade, Usinagem e Montagem, com dois canais de medição por setor.
+- **Atualização automática:** consulta periódica, timeout e novas tentativas sem requisições sobrepostas.
+- **Estado das leituras:** indicação de dados completos, parciais, ausentes ou desatualizados.
+- **Persistência local:** transações SQLite e retenção em lotes de 100 coletas.
+- **Histórico por API:** filtros por setor e período, com paginação.
+- **Interface responsiva:** HTML, CSS e JavaScript, sem frameworks ou recursos externos obrigatórios.
+- **Testes automatizados:** runner nativo do Node.js e integração contínua com GitHub Actions.
+
+> **Escopo:** a interface apresenta o último snapshot; o histórico é consultado pela API, sem gráficos na versão atual. O aplicativo não possui autenticação e deve operar em rede confiável.
 
 ## Arquitetura
 
 ```text
-Medidores → Modbus TCP → Node-RED → HTTP → Node.js → SQLite
-                                           ↑
-                                      Dashboard web
+Medidores elétricos
+        │ Modbus TCP
+        ▼
+     Node-RED
+        │ HTTP / JSON
+        ▼
+ Backend Node.js ─────► SQLite
+        ▲
+        │ HTTP · interface e API na mesma origem
+        ▼
+ Navegador desktop / celular
 ```
 
-O aplicativo requer um Node-RED configurado para receber leituras reais. Os testes usam fontes simuladas e podem ser executados sem medidores ou Node-RED.
+| Camada | Tecnologia | Responsabilidade |
+| --- | --- | --- |
+| Interface | HTML5, CSS3 e JavaScript | Exibição dos indicadores e estado da conexão |
+| Servidor | Node.js 24+ · `node:http` | Arquivos estáticos, API e coleta periódica |
+| Armazenamento | SQLite · `node:sqlite` | Snapshots, cálculo de potência e consultas históricas |
+| Integração externa | Node-RED e Modbus TCP | Aquisição e disponibilização das leituras |
+| Qualidade | `node:test` e GitHub Actions | Testes de persistência e integração HTTP |
 
-## Executar
+O aplicativo e os testes usam apenas módulos nativos do Node.js. O Node-RED é um serviço separado; para comunicação Modbus, a integração utilizada requer `node-red-contrib-modbus`.
 
-Requer **Node.js 24 ou superior**.
+## Início rápido
+
+### Requisitos
+
+- **Node.js 24 ou superior**, com npm disponível.
+- Git para clonar o projeto.
+- Para leituras reais: endpoint Node-RED acessível pelo servidor e configurado conforme o [contrato de dados](#contrato-de-dados).
 
 ```sh
 git clone https://github.com/Guiandrelino/dash-node.git
@@ -33,72 +63,57 @@ cd dash-node
 npm start
 ```
 
-Não é necessário executar `npm install`: o aplicativo e os testes usam apenas módulos nativos do Node.js. O Node-RED é um serviço separado e sua integração Modbus requer `node-red-contrib-modbus`.
+Acesse **http://127.0.0.1:3000**. Não é necessário executar `npm install`.
 
-Abra **http://127.0.0.1:3000**. Não abra mais o HTML diretamente: a API e o dashboard agora são servidos pelo backend.
+O banco `data/energia.sqlite` é criado automaticamente. A coleta começa com o servidor e continua mesmo sem abas abertas. Para encerrar, pressione **Ctrl+C**.
 
-O banco `data/energia.sqlite` é criado automaticamente na primeira execução. A coleta começa quando o servidor inicia e continua mesmo sem navegador aberto. Para interromper, pressione Ctrl+C.
-
-## Integração com Node-RED (arquivos locais)
-
-> **Os arquivos `fluxo.json` e `fluxo.original.json` não acompanham o clone.** Eles contêm configuração específica do ambiente e são mantidos fora do Git. Para receber dados reais, configure seu próprio endpoint Node-RED com o contrato JSON abaixo ou obtenha os fluxos com o responsável pelo ambiente por um canal privado. Sem essa fonte, a interface abre, mas fica sem leituras; os testes continuam funcionando.
-
-### Importar um fluxo local existente
-
-O `fluxo.json` local salva os valores convertidos no contexto `flow.paineis`, junto com horário por campo. O fluxo original apenas enviava as leituras para debug, enquanto a API consultava um contexto que nunca era preenchido. Backup: `fluxo.original.json`.
-
-1. Faça um backup do fluxo implantado no Node-RED.
-2. Substitua a aba antiga pela versão de `fluxo.json` (menu → Importar → selecionar arquivo). Não mantenha duas cópias com a mesma rota `/api/dados` e leituras duplicadas. Se o editor perguntar, substitua os nós existentes.
-3. Confirme que `node-red-contrib-modbus` está instalado e configure o endereço, a porta e os IDs dos dispositivos Modbus conforme seu ambiente.
-4. Clique em **Deploy** e aguarde as leituras. Teste `http://127.0.0.1:1880/api/dados`: deve devolver valores em `paineis`. HTTP 503 informa ausência de leituras recebidas nos últimos 15 segundos.
-5. Execute/reinicie `npm start` e abra `http://127.0.0.1:3000`. Para diagnóstico, consulte `/api/status` na porta 3000.
-
-**Potências calculadas no banco:** após gravar corrente e tensão, o SQLite calcula `potencia1 = tensao1 × corrente1` e `potencia2 = tensao2 × corrente2`, usando os pares da mesma linha/setor/coleta. A corrente recebida já está em amperes (A), sem conversão de escala. A interface exibe esses resultados em W como **potência estimada**, assumindo fator de potência 1; em corrente alternada, sem fator de potência, o produto V × A representa potência aparente (VA), não uma medição de potência ativa. Não é aplicado fator trifásico. Valores de potência enviados pelo Node-RED são ignorados. Se faltar corrente ou tensão do canal, sua potência fica `NULL` (`—`).
-
-**Mapa preservado:** Tensão2 Entrega usa endereço 3023, enquanto os demais setores usam 3021. Confirme essa diferença no manual antes de alterar. As correntes mantêm a escala original `SCALE=1`, pois o medidor entrega amperes; a interface exibe A. Ordem de palavras preservada (`WORD_SWAP=false`).
-
-A validade é individual por campo: valores sem atualização por 15 segundos são retornados como `null`, evitando salvar um cache antigo como se fosse leitura atual. Esse limite pode ser ajustado em `MAX_AGE_MS` na função da API, conforme o tempo real do ciclo Modbus. Ainda podem existir consultas repetidas dentro desse intervalo.
-
-O script `node scripts/corrigir-fluxo.js` regenera `fluxo.json` a partir do backup; não o execute depois de personalizar o fluxo sem salvar suas alterações.
+> Sem uma fonte Node-RED válida, o dashboard abre, mas permanece sem leituras. Os testes podem ser executados sem Node-RED e sem medidores. Abrir `index.html` diretamente, usar Live Server ou publicar apenas os arquivos estáticos não executa o backend.
 
 ## Configuração
 
-Copie `.env.example` para `.env` se quiser alterar os padrões:
+As configurações são opcionais. Para personalizar o ambiente, copie `.env.example` para `.env` na raiz do projeto.
 
-```dotenv
-HOST=127.0.0.1
-PORT=3000
-NODE_RED_URL=http://127.0.0.1:1880/api/dados
-POLL_INTERVAL_MS=1000
-REQUEST_TIMEOUT_MS=8000
-DB_PATH=data/energia.sqlite
+**PowerShell:**
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-O endereço do Node-RED é acessado pelo **servidor Node.js**, não pelo navegador. Frontend e API usam a mesma origem, dispensando CORS no dashboard.
+**Linux, macOS ou Git Bash:**
 
-Para acesso na rede, configure `HOST=0.0.0.0`, reinicie o servidor e acesse `http://<IP-da-maquina>:3000` em um dispositivo da mesma rede. Libere a porta no firewall somente para a rede confiável. `0.0.0.0` é o endereço de escuta, não o endereço a digitar no celular. A interface apresenta o endereço usado no navegador; se aberta por `localhost` ou `127.0.0.1`, abra novamente pelo IP da rede antes de compartilhar o link.
-
-Não exponha diretamente à internet: não há autenticação; use autenticação e HTTPS em um proxy antes de publicação externa. Nunca inclua senhas de Wi-Fi ou credenciais na interface ou nos commits.
-
-## Estrutura
-
-```text
-.env.example         Modelo público de configuração (sem credenciais)
-.gitignore           Exclusões de arquivos locais e dados de operação
-package.json         Comandos e versão mínima do Node.js
-README.md            Documentação do projeto
-index.html           Estrutura e template dos painéis
-css/styles.css       Estilos responsivos
-js/app.js            Interface e consulta ao backend
-server/index.js      Servidor HTTP, coletor e rotas
-server/database.js   Schema, normalização e consultas SQL
-scripts/corrigir-fluxo.js  Gerador opcional; exige fluxo.original.json local
-test/                Testes automatizados
-.github/workflows/   Testes automáticos no GitHub Actions
-data/                Banco criado automaticamente (não versionado)
+```sh
+cp .env.example .env
 ```
 
-## Dados esperados do Node-RED
+| Variável | Padrão | Descrição |
+| --- | --- | --- |
+| `HOST` | `127.0.0.1` | Endereço de escuta do servidor |
+| `PORT` | `3000` | Porta HTTP |
+| `NODE_RED_URL` | `http://127.0.0.1:1880/api/dados` | Endpoint consultado pelo backend |
+| `POLL_INTERVAL_MS` | `1000` | Espera entre o término de uma coleta e a próxima |
+| `REQUEST_TIMEOUT_MS` | `8000` | Tempo limite de cada consulta à fonte |
+| `DB_PATH` | `data/energia.sqlite` | Caminho do banco; se relativo, usa a raiz do projeto |
+
+Reinicie o servidor após alterar a configuração. O endereço do Node-RED é acessado pelo **backend**, não pelo navegador; interface e API utilizam a mesma origem.
+
+### Acesso pela rede local
+
+1. Configure `HOST=0.0.0.0` no `.env` e reinicie o servidor.
+2. Identifique o IP local da máquina que executa o aplicativo.
+3. Libere a porta configurada no firewall somente para a rede confiável.
+4. Em um dispositivo da mesma rede, abra `http://<IP-da-maquina>:3000`.
+
+`0.0.0.0` é um endereço de escuta, não um endereço para abrir no celular. O painel de acesso móvel apresenta a origem usada no navegador; abra o dashboard pelo IP da rede antes de compartilhar o link. `localhost` e `127.0.0.1` referem-se ao próprio dispositivo.
+
+## Integração com Node-RED
+
+**Os arquivos `fluxo.json` e `fluxo.original.json` não são distribuídos neste repositório.** Eles representam configurações locais do ambiente e estão excluídos pelo `.gitignore`.
+
+Você pode configurar seu próprio endpoint com o contrato abaixo ou obter os fluxos com o responsável pelo ambiente por um canal privado. Nunca publique credenciais ou endereços de dispositivos industriais para disponibilizar uma demonstração.
+
+### Contrato de dados
+
+A fonte deve responder à consulta HTTP com um objeto JSON contendo `paineis`:
 
 ```json
 {
@@ -113,70 +128,114 @@ data/                Banco criado automaticamente (não versionado)
 }
 ```
 
-A mesma estrutura é aceita para `entrega`, `qualidade`, `usinagem` e `montagem`. A entrada usa corrente em A e tensão em V. Não é necessário enviar potência: o backend ignora os campos de potência da fonte e calcula os resultados no SQLite. No exemplo, `potencia1 = 26510` e `potencia2 = 26122`, exibidas em W como potência estimada, com a ressalva sobre potência aparente descrita acima.
+- Setores aceitos: `embalagem`, `entrega`, `qualidade`, `usinagem` e `montagem`.
+- Correntes devem ser fornecidas em **amperes (A)**; tensões, em **volts (V)**.
+- Números finitos, zero e strings numéricas são aceitos. Campos inválidos ou ausentes tornam-se `NULL`.
+- Setores sem corrente ou tensão válida são omitidos. Respostas sem qualquer medição válida não são gravadas.
+- Potências enviadas pela fonte são ignoradas; o backend calcula os resultados no banco.
+
+### Cálculo de potência
+
+Após persistir corrente e tensão, o SQLite calcula os pares da mesma linha, setor, canal e coleta:
+
+```text
+potencia1 = tensao1 × corrente1
+potencia2 = tensao2 × corrente2
+```
+
+No exemplo, os resultados são `26510` e `26122`. Se faltar corrente ou tensão em um canal, sua potência permanece `NULL`, exibida como `—`.
+
+> **Interpretação elétrica:** a interface usa o rótulo “Potência estimada” e a unidade W, assumindo fator de potência 1. Em corrente alternada, o produto V × A representa potência aparente (VA); sem fator de potência, não constitui medição de potência ativa. Não é aplicado fator trifásico.
+
+### Utilização dos fluxos locais existentes
+
+1. Faça backup do fluxo implantado no Node-RED.
+2. Importe o `fluxo.json` local, substituindo a aba anterior. Não mantenha rotas `/api/dados` nem consultas Modbus duplicadas.
+3. Instale `node-red-contrib-modbus`, se necessário, e revise endereços, portas e IDs dos dispositivos.
+4. Faça **Deploy** e consulte `http://127.0.0.1:1880/api/dados`.
+5. Inicie o Volt e utilize `/api/status` na porta 3000 para diagnóstico.
+
+O fluxo local corrigido salva valores em `flow.paineis` e mantém um horário por campo. Leituras sem atualização há mais de 15 segundos são retornadas como `null`; quando não há leituras recentes, a fonte responde HTTP 503. O limite pode ser ajustado em `MAX_AGE_MS`, conforme o ciclo Modbus. Essa validade depende da implementação da fonte: o backend não valida os horários individuais recebidos.
+
+**Parâmetros preservados do mapa local:** Tensão 2 de Entrega utiliza endereço 3023, enquanto os demais setores usam 3021; `SCALE=1` e `WORD_SWAP=false`. Confirme registradores, unidades e ordem de palavras no manual antes de alterar.
+
+O comando abaixo regenera o fluxo corrigido a partir do backup local:
+
+```sh
+node scripts/corrigir-fluxo.js
+```
+
+Ele exige `fluxo.original.json` e sobrescreve `fluxo.json`. Salve suas personalizações antes de executá-lo.
 
 ## Coleta e persistência
 
-- Uma consulta inicial e outra 1 segundo após a anterior terminar; sem sobreposição.
-- Timeout padrão de 8 segundos. Falhas geram novas tentativas, não leituras falsas.
-- Dados numéricos finitos são aceitos (incluindo zero e strings numéricas); valores inválidos viram `NULL`.
-- Setores sem qualquer campo válido são omitidos. Respostas sem nenhuma medição válida não são gravadas.
-- Cada resposta válida é salva em uma transação: uma linha em `coletas` e até cinco linhas em `leituras`. As potências são calculadas no SQLite depois da inserção, na mesma transação.
-- Retenção em lotes de **100 coletas** (até 100 linhas por setor e 500 linhas no total). A coleta 100 permanece disponível; ao chegar a 101, as 100 anteriores são apagadas e começa um novo lote com uma coleta. Não é uma janela deslizante. A contagem permanece após reiniciar e consultas com falha não contam.
-- Corrente 1/tensão 1/potência 1 e corrente 2/tensão 2/potência 2 ficam na mesma linha do respectivo setor, sem misturar coletas ou canais.
-- `coletado_em` usa UTC, no horário em que o backend recebeu os dados. Não é o horário de medição do dispositivo.
-- Valores iguais são armazenados novamente: este é um histórico de **consultas**, não de eventos únicos. Sem timestamp/ID na origem não é possível distinguir uma leitura nova de uma repetida.
-- Em falhas, a API entrega o último snapshot com `coleta.connected=false`. O dashboard marca os valores como desatualizados, inclusive após recarregar a página.
-- “Com dados” não comprova que o dispositivo está online; apenas que o Node-RED forneceu valores válidos.
+| Comportamento | Regra |
+| --- | --- |
+| Agendamento | Consulta inicial ao iniciar o servidor; próximas consultas após o intervalo configurado, sem sobreposição |
+| Falhas | Novas tentativas automáticas; nenhuma medição fictícia é inserida |
+| Transação | Uma linha em `coletas` e até cinco linhas em `leituras` por resposta válida |
+| Retenção | Lotes de 100 coletas; a coleta 101 apaga o lote anterior e inicia outro |
+| Horário | `coletado_em` em UTC, no recebimento pelo backend, não no instante de medição do dispositivo |
+| Repetições | Valores iguais são persistidos novamente; o histórico representa consultas, não eventos únicos |
+| Indisponibilidade | Último snapshot preservado, com `coleta.connected=false` e indicação de dados desatualizados |
 
-## APIs
+A retenção **não é uma janela deslizante**. São mantidas até 100 linhas por setor e 500 linhas de leitura no total. A contagem permanece após reiniciar; consultas com falha não contam. Não há garantia de sincronismo entre medições dos dispositivos apenas por estarem na mesma resposta.
 
-### `GET /api/dados`
+“Com dados” indica que a fonte forneceu valores válidos, não comprova que cada medidor esteja online.
 
-Retorna `{ coletadoEm, paineis, coleta }` com o último snapshot persistido. HTTP 503 se ainda não houver leituras. `coleta` contém estado da coleta, último sucesso, tentativa e erro.
+## API HTTP
 
-### `GET /api/status`
+As rotas aceitam `GET` e retornam JSON. Outros métodos retornam HTTP 405.
 
-Estado do coletor. Uma conexão bem-sucedida significa que a resposta HTTP foi validada e gravada no banco.
+| Endpoint | Descrição | Resposta |
+| --- | --- | --- |
+| `/api/dados` | Último snapshot persistido e estado da coleta | `{ coletadoEm, paineis, coleta }`; HTTP 503 sem leituras armazenadas |
+| `/api/status` | Estado do coletor | `{ connected, lastAttempt, lastSuccess, error }` |
+| `/api/historico` | Leituras ordenadas da mais recente para a mais antiga | `{ limite, offset, leituras: [...] }` |
 
-### `GET /api/historico`
+Uma coleta bem-sucedida significa que a resposta da fonte foi validada e persistida. Durante falhas, `/api/dados` continua retornando o último snapshot, quando disponível, com o estado de desconexão.
 
-Histórico paginado, do mais recente para o mais antigo. Uma linha por setor por consulta.
+### Filtros de histórico
 
-Parâmetros opcionais:
+| Parâmetro | Formato | Padrão |
+| --- | --- | --- |
+| `setor` | Um dos cinco identificadores aceitos | Todos |
+| `inicio` | ISO 8601 com timezone; limite inclusivo | Sem limite inicial |
+| `fim` | ISO 8601 com timezone; limite inclusivo | Sem limite final |
+| `limite` | Inteiro de 1 a 1000 | `100` |
+| `offset` | Inteiro não negativo | `0` |
 
-- `setor`: embalagem, entrega, qualidade, usinagem ou montagem.
-- `inicio` / `fim`: ISO 8601 com timezone, inclusive nos limites.
-- `limite`: 1 a 1000, padrão 100.
-- `offset`: inteiro não negativo, padrão 0.
-
-Exemplo:
-
-```text
-http://127.0.0.1:3000/api/historico?setor=embalagem&inicio=2026-01-01T00:00:00Z&fim=2026-01-31T23:59:59Z&limite=100&offset=0
+```sh
+curl "http://127.0.0.1:3000/api/historico?setor=embalagem&limite=10&offset=0"
 ```
 
-Resposta: `{ limite, offset, leituras: [...] }`. O histórico está disponível pela API; a interface atual exibe o último snapshot, sem gráficos históricos.
+Exemplo com período:
 
-## Operação e backup
+```text
+/api/historico?setor=embalagem&inicio=2026-01-01T00:00:00Z&fim=2026-01-31T23:59:59Z&limite=100
+```
 
-O armazenamento limpa automaticamente o lote anterior ao iniciar o próximo, mantendo no máximo 100 coletas. Ao abrir um banco antigo com mais de 100 coletas, mantém somente as 100 mais recentes e recalcula as potências a partir das correntes e tensões existentes. A limpeza remove registros, mas não necessariamente reduz o tamanho físico do arquivo SQLite. Faça backup antes de atualizar se quiser preservar o histórico antigo.
+Cada item do histórico representa um setor em uma coleta. Filtros inválidos retornam HTTP 400. Para offsets de timezone positivos em URLs, codifique o sinal `+` como `%2B`.
 
-Para um backup simples, **pare o servidor** antes de copiar a pasta `data/` inteira (incluindo arquivos WAL/SHM, se existirem). Não copie apenas o arquivo principal enquanto há gravações. O banco contém seu histórico: não apague a pasta `data/` para atualizar o código.
+## Estrutura do projeto
 
-SQLite nativo pode emitir um aviso de recurso experimental em versões do Node.js 24; não significa falha na gravação.
-
-## Publicação no GitHub
-
-O `.gitignore` exclui configurações locais (`.env`), bancos SQLite, logs e dependências. O arquivo `.env.example` contém apenas exemplos de configuração e pode ser versionado.
-
-Os fluxos Node-RED (`fluxo.json` e `fluxo.original.json`) são arquivos locais, excluídos do versionamento pelo `.gitignore` e não distribuídos neste repositório. As instruções de importação e o script de correção exigem que esses arquivos estejam disponíveis localmente.
-
-Antes de cada envio, revise `git status --short`, `git diff` e `git diff --cached`. O `.gitignore` não protege arquivos já rastreados nem remove informações dos commits antigos. Se uma credencial tiver sido publicada, troque/revogue a credencial imediatamente e avalie a limpeza do histórico com os colaboradores; um novo commit removendo o texto não elimina a exposição anterior.
-
-O repositório ainda não declara uma licença de uso. Repositório público não equivale a software com licença aberta; defina uma licença antes de autorizar redistribuição.
-
-**GitHub Pages não executa este backend Node.js nem o SQLite.** O repositório pode apresentar o código no portfólio; para uma demonstração online funcional, será necessário hospedar o servidor e fornecer uma fonte de dados acessível. Não exponha a rede industrial para criar essa demonstração.
+```text
+dash-node/
+├── .github/workflows/tests.yml  # Integração contínua
+├── .env.example                # Modelo público de configuração
+├── .gitignore                  # Exclusões de dados e configurações locais
+├── README.md
+├── package.json                # Comandos e versão mínima do Node.js
+├── index.html                  # Estrutura e template dos painéis
+├── css/styles.css              # Estilos e layout responsivo
+├── js/app.js                   # Renderização e consulta ao backend
+├── server/
+│   ├── index.js                # Servidor HTTP, rotas e coletor
+│   └── database.js             # Schema, normalização e consultas SQLite
+├── scripts/corrigir-fluxo.js    # Gerador opcional de fluxo local
+├── test/                       # Testes automatizados
+└── data/                       # Criado em execução; não versionado
+```
 
 ## Testes
 
@@ -184,6 +243,41 @@ O repositório ainda não declara uma licença de uso. Repositório público nã
 npm test
 ```
 
-Testes cobrem normalização, transações, histórico e filtros, cálculo de potência, retenção em lotes, coleta HTTP com servidor simulado, proteção do arquivo do banco e manutenção das últimas leituras durante falhas.
+A suíte verifica normalização, transações, cálculo de potência, retenção em lotes, reabertura do banco, histórico e filtros, coleta HTTP simulada e preservação das leituras durante falhas.
 
-O GitHub Actions executa `npm test` com Node.js 24. Em um clone sem fluxos locais, os três testes de `test/flow.test.js` são ignorados intencionalmente; os seis testes restantes devem passar. Com `fluxo.json` local disponível, os nove testes são executados. Isso valida o código e a fonte simulada, não a conectividade com os medidores reais.
+- **Clone público:** seis testes executados e três testes de fluxo ignorados intencionalmente, pois `fluxo.json` não acompanha o repositório.
+- **Com fluxo local disponível:** nove testes executados.
+- **GitHub Actions:** executa `npm test` com Node.js 24 em pushes e pull requests.
+
+Os testes não validam a rede industrial nem substituem a conferência do mapa de registradores e das unidades nos equipamentos reais. O módulo SQLite nativo pode emitir um aviso experimental em versões do Node.js 24; isso, isoladamente, não indica falha.
+
+## Operação e segurança
+
+### Backup e atualização
+
+Pare o servidor antes de copiar a pasta `data/` inteira, incluindo arquivos WAL/SHM, se existirem. Não copie apenas o arquivo principal durante gravações. Se `DB_PATH` foi personalizado, faça backup do banco configurado e de seus arquivos auxiliares.
+
+Ao abrir bancos antigos com mais de 100 coletas, o aplicativo mantém apenas as 100 mais recentes e recalcula as potências. Faça backup antes de atualizar caso precise preservar o histórico anterior. A remoção de registros não necessariamente reduz o tamanho físico do arquivo SQLite.
+
+### Publicação
+
+- `.env`, bancos, logs, dependências e fluxos locais são excluídos pelo `.gitignore`; `.env.example` pode ser versionado.
+- Revise `git diff` e `git diff --cached` antes de cada commit. Arquivos já rastreados não são protegidos retroativamente pelo `.gitignore`.
+- Nunca inclua senhas de Wi-Fi, tokens ou credenciais na interface ou no histórico. Se houver exposição, revogue ou troque a credencial imediatamente.
+- Para acesso externo, utilize autenticação, HTTPS e controles de rede em uma infraestrutura apropriada. O aplicativo não fornece esses controles.
+- **GitHub Pages não executa Node.js nem SQLite.** Uma demonstração funcional exige hospedar o backend e disponibilizar uma fonte de dados acessível, sem expor a rede industrial.
+
+## Solução de problemas
+
+| Sintoma | Verificação |
+| --- | --- |
+| Dashboard sem leituras | Consulte `/api/status` e confirme que `NODE_RED_URL` responde com o contrato esperado |
+| HTTP 503 em `/api/dados` | Ainda não houve coleta válida; verifique a fonte e os registros do servidor |
+| Valores desatualizados | Verifique a conexão com o Node-RED, o timeout e a validade dos dados na origem |
+| API não encontrada | Abra o endereço servido por `npm start`, não o HTML diretamente ou pelo Live Server |
+| Celular não acessa | Confira `HOST`, IP local, porta, firewall e se os dispositivos estão na mesma rede |
+| Gerador sem arquivo de entrada | Disponibilize o backup local `fluxo.original.json`; ele não está no Git |
+
+## Licença
+
+Este repositório ainda não declara uma licença de uso. A disponibilidade pública do código não equivale à concessão de uma licença aberta para redistribuição ou modificação.
