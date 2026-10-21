@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101c30">
+  <meta name="description" content="Monitoramento de corrente, tensão e potência dos painéis elétricos.">
+  <title>Volt — Monitoramento de energia</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  <div class="workspace">
+    <header class="topbar">
+      <span class="breadcrumb"><strong>Monitoramento</strong></span>
+      <span class="sync-info">Última atualização: <time id="ultimaAtualizacao">—</time></span>
+      <div class="connection" id="conexao" data-state="connecting" role="status"><span class="status-dot" aria-hidden="true"></span><span id="statusTexto">Conectando…</span></div>
+    </header>
+
+    <main id="conteudo">
+      <section class="mobile-access" aria-label="Acesso ao monitoramento pelo celular">
+        <div class="mobile-access-title"><span aria-hidden="true">▣</span><strong>Acesse pelo celular</strong><small>Não precisa de internet</small></div>
+        <div class="mobile-access-step"><span class="access-step">1</span><span>Conecte à rede Wi-Fi local<small>Solicite os dados de acesso ao responsável. Mantenha conectado mesmo sem internet.</small></span></div>
+        <div class="mobile-access-step"><span class="access-step">2</span><span>Abra o navegador e acesse<small><a id="enderecoAcesso" href="/">Use o IP desta máquina na rede local</a></small></span></div>
+      </section>
+      <section class="page-heading" aria-labelledby="page-title">
+        <div><p class="eyebrow">VISÃO GERAL DA OPERAÇÃO</p><h1 id="page-title">Monitoramento de energia<span>.</span></h1><p class="subtitle">Acompanhe os indicadores elétricos de cada setor em um só lugar.</p></div>
+        <button id="atualizar" class="button" type="button"><span class="refresh-icon" aria-hidden="true">↻</span><span>Atualizar agora</span></button>
+      </section>
+
+      <section class="panels-section" aria-labelledby="panels-title">
+        <div class="section-heading"><div><h2 id="panels-title">Painéis elétricos <span class="count-badge">05</span></h2><p>Leituras por setor e canal de medição</p></div><span class="section-note"><span class="small-dot" aria-hidden="true"></span> Corrente · Tensão · Potência</span></div>
+        <div id="paineis" class="panels-grid"></div>
+        <noscript><p class="notice">Ative o JavaScript para visualizar os painéis e buscar os dados do Node-RED.</p></noscript>
+      </section>
+      <footer class="footer"><span><span class="small-dot" aria-hidden="true"></span> Volt · Monitoramento de energia</span><span>Dados fornecidos pelo Node-RED</span></footer>
+    </main>
+  </div>
+
+  <template id="painel-template">
+    <article class="panel">
+      <header class="panel-header"><div class="panel-title-group"><span class="panel-icon" aria-hidden="true"></span><div><p class="panel-number"></p><h3></h3></div></div><span class="panel-status" data-state="waiting">Aguardando</span></header>
+      <div class="channel-heading"><span>INDICADOR</span><span>CANAL 01</span><span>CANAL 02</span></div>
+      <div class="measurements"></div>
+      <footer class="panel-footer"><span class="small-dot" aria-hidden="true"></span><span class="panel-update">Aguardando dados</span></footer>
+    </article>
+  </template>
+</body>
+</html>

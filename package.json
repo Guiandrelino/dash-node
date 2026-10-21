@@ -1,0 +1,11 @@
+{
+  "name": "volt-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard de energia com coleta HTTP e histórico SQLite",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,23 @@
+# Configurações locais e credenciais
+.env
+.env.*
+!.env.example
+
+# Fluxos Node-RED locais (não publicar)
+fluxo.json
+fluxo.original.json
+
+# Dados de operação
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+
+# Dependências e cobertura
+node_modules/
+coverage/
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
