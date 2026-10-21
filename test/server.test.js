@@ -43,9 +43,26 @@ test("HTTP coleta, persiste e sinaliza falha sem perder histórico", { timeout: 
     assert.equal(latest.paineis.embalagem.potencia2, 0);
     assert.equal(latest.coleta.connected, true);
     assert.equal((await fetch(`${base}/`)).status, 200);
-    assert.equal((await fetch(`${base}/data/energia.sqlite`)).status, 404);
+    for (const asset of ["/css/styles.css", "/js/app.js"]) {
+      assert.equal((await fetch(`${base}${asset}`)).status, 200);
+    }
+    for (const privatePath of ["/data/energia.sqlite", "/.env", "/.git/config", "/server/index.js", "/fluxo.json"]) {
+      assert.equal((await fetch(`${base}${privatePath}`)).status, 404, privatePath);
+    }
+    const methodDenied = await fetch(`${base}/api/dados`, { method: "POST" });
+    assert.equal(methodDenied.status, 405);
+    assert.equal(methodDenied.headers.get("allow"), "GET");
+    const statusResponse = await fetch(`${base}/api/status`);
+    assert.equal(statusResponse.headers.get("cache-control"), "no-store");
+    assert.equal(statusResponse.headers.get("x-content-type-options"), "nosniff");
     assert.equal((await fetch(`${base}/api/historico?setor=invalid`)).status, 400);
-    assert.equal((await fetch(`${base}/api/historico?limite=-1`)).status, 400);
+    for (const query of [
+      "limite=-1", "limite=1001", "offset=-1", "offset=1.5",
+      "inicio=2026-01-01", "fim=invalido",
+      "inicio=2026-02-01T00:00:00Z&fim=2026-01-01T00:00:00Z",
+    ]) {
+      assert.equal((await fetch(`${base}/api/historico?${query}`)).status, 400, query);
+    }
     const history = await (await fetch(`${base}/api/historico?setor=embalagem&limite=1`)).json();
     assert.equal(history.leituras.length, 1);
     assert.equal(history.leituras[0].potencia1, 42000);
